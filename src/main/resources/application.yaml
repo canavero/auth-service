@@ -1,0 +1,48 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: auth
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 1000
+            read-timeout: 2000
+
+store:
+  jwt:
+    # chave de DESENVOLVIMENTO (pública). Em produção: JWT_SECRET_KEY=$(openssl rand -base64 32)
+    secretKey: ${JWT_SECRET_KEY:EBwrdOOcAIDRLON9hbJV0+O3PTdfTjgMCQIxwLH7ws8=}
+    httpOnly: ${JWT_HTTP_ONLY:true}
+    duration: ${JWT_DURATION:3600000} # 1 hora em ms
+
+# bottleneck: circuit breaker nas chamadas Feign ao account
+resilience4j:
+  circuitbreaker:
+    instances:
+      account:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-duration-threshold: 1500ms
+        slow-call-rate-threshold: 50
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 3
+        # só falhas de infraestrutura contam; 401/400/409 são respostas "normais"
+        record-exceptions:
+          - feign.RetryableException
+          - feign.FeignException$FeignServerException
+
+management:
+  endpoints:
+    web:
+      base-path: /auth/actuator
+      exposure:
+        include: [health, prometheus, circuitbreakers]
+  endpoint:
+    health:
+      probes:
+        enabled: true
